@@ -15,32 +15,54 @@ struct ContentView: View {
     @State private var errorMessage = ""
     @State private var showingError = false
     
+    func getScore() -> Int {
+        var runningTotal = 0
+        
+        for word in usedWords {
+            runningTotal += word.count
+        }
+        
+        return runningTotal
+    }
+    
     var body: some View {
         NavigationView {
-            List {
-                Section {
-                    TextField("Enter your word", text: $newWord)
-                        .autocapitalization(.none)
-                }
-                
-                Section {
-                    ForEach(usedWords, id: \.self) { word in
-                        HStack {
-                            Image(systemName: "\(word.count).circle")
-                            Text(word)
+                List {
+                    Section("Root Word") {
+                        Text(rootWord.uppercased())
+                            .font(Font.headline)
+                    }
+                    Section {
+                        TextField("Enter your \(usedWords.isEmpty ? "first" : "next") word", text: $newWord)
+                            .autocapitalization(.none)
+                        ForEach(usedWords, id: \.self) { word in
+                            HStack {
+                                Image(systemName: "\(word.count).circle")
+                                Text(word)
+                            }
                         }
+                    }
+                    Section("Your Score") {
+                        Text("\(getScore())")
+                    }
+                }
+                .navigationTitle("WordScramble")
+                .onSubmit(addNewWord)
+                .onAppear(perform: startGame)
+                .alert(errorTitle, isPresented: $showingError) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text(errorMessage)
+                }
+                .toolbar {
+                    ToolbarItem(placement: .destructiveAction) {
+                        Button("Restart", role: .destructive, action: startGame)
+                    }
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Text("Score: \(getScore())")
                     }
                 }
             }
-            .navigationTitle(rootWord)
-            .onSubmit(addNewWord)
-            .onAppear(perform: startGame)
-            .alert(errorTitle, isPresented: $showingError) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(errorMessage)
-            }
-        }
     }
     
     func addNewWord() {
@@ -58,6 +80,15 @@ struct ContentView: View {
             wordError(title: "Word not recognized", message: "You can't just make them up, you know!")
             return
         }
+        guard isLongEnough(word: answer) else {
+            wordError(title: "Word too short", message: "Your words must be at least 3 letters long!")
+            return
+        }
+        guard isNotTheRoot(word: answer) else {
+            wordError(title: "Word is the root", message: "Nice try. Think of something else!")
+            return
+        }
+        
         withAnimation {
             usedWords.insert(answer, at: 0)
         }
@@ -85,6 +116,14 @@ struct ContentView: View {
         return misspelledRange.location == NSNotFound
     }
     
+    func isLongEnough(word: String) -> Bool {
+        return word.count >= 3
+    }
+    
+    func isNotTheRoot(word: String) -> Bool {
+        return word != rootWord
+    }
+    
     func wordError(title: String, message: String) {
         errorMessage = message
         errorTitle = title
@@ -92,6 +131,7 @@ struct ContentView: View {
     }
     
     func startGame() {
+        usedWords = [String]()
         if let startWordURL = Bundle.main.url(forResource: "start", withExtension: "txt") {
             if let startWords = try? String(contentsOf: startWordURL) {
                 let allWords = startWords.components(separatedBy: "\n")
